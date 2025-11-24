@@ -1,0 +1,23 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run test_dMMD.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_dMMD.py",
+            "console": "integratedTerminal",
+            "python": "/home/umflint.edu/mufarooq/miniconda3/envs/nsg-vd/bin/python",
+            "args": [
+                "--config-path", "configs/nsg-vd-224x224",
+                "--config-name", "test.yaml",
+                "ckpt_path=./ckpts/standard-Pika-d.pth",
+                "log_path=./results/test/nsg-vd",
+                "save_csv_file=standard-Pika-mmd-d.csv"
+            ]
+        }
+    ]
+}

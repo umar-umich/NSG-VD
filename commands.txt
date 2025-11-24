@@ -1,0 +1,5 @@
+# Test
+python test_dMMD.py --config-path ./configs/nsg-vd-224x224 --config-name test.yaml ckpt_path=./ckpts/standard-Pika-d.pth log_path=./results/test/nsg-vd save_csv_file=standard-Pika-mmd-d.csv
+
+# Train
+python train_dMMD.py --config-path configs/nsg-vd-224x224 --config-name standard.yaml data.generation_model="Pika" experiment_name="standard-Pika-mp" # default is mp with model.is_yy_zero=True
