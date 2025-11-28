@@ -1,0 +1,61 @@
+calibration_date: '2025-11-26T00:10:44.279692'
+num_real_videos: 215
+num_fake_videos: 1053
+statistics:
+  real:
+    mean: 0.5510744186046511
+    std: 0.3891774156865683
+    min: 0.1048
+    max: 1.5747
+    median: 0.4239
+    q25: 0.2242
+    q75: 0.7597
+  fake:
+    mean: 0.865016809116809
+    std: 0.5348661196745997
+    min: 0.0892
+    max: 1.5747
+    median: 0.85
+    q25: 0.324
+    q75: 1.4416
+thresholds:
+  conservative:
+    threshold: 1.4308899999999998
+    description: Conservative (5% FPR) - For demos/public use
+    tpr: 0.2535612535612536
+    fpr: 0.05116279069767442
+    precision: 0.960431654676259
+    f1: 0.4012021036814426
+    accuracy: 0.3714511041009464
+  balanced:
+    threshold: 1.1267999999999998
+    description: Balanced (10% FPR) - Default for most use cases
+    tpr: 0.3922127255460589
+    fpr: 0.10232558139534884
+    precision: 0.9494252873563218
+    f1: 0.5551075268817205
+    accuracy: 0.47791798107255523
+  aggressive:
+    threshold: 0.8477000000000001
+    description: Aggressive (20% FPR) - For security applications
+    tpr: 0.5004748338081672
+    fpr: 0.2
+    precision: 0.9245614035087719
+    f1: 0.6494146642020949
+    accuracy: 0.5512618296529969
+  paper_default:
+    threshold: 1.0
+    description: Original paper threshold
+    tpr: 0.44634377967711303
+    fpr: 0.14883720930232558
+    precision: 0.9362549800796812
+    f1: 0.6045016077170419
+    accuracy: 0.5149842271293376
+  youden:
+    threshold: 0.963
+    description: Youden's J statistic (optimal TPR-FPR)
+    tpr: 0.46153846153846156
+    fpr: null
+    precision: null
+    f1: null
+    accuracy: null

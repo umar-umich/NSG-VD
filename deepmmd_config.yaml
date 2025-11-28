@@ -1,0 +1,40 @@
+# DeepMMD Detector Configuration
+# For demo integration and single video inference
+
+# Model Configuration
+model_name: Velocity_Single_TALL_MMD  # or Score_Single_TALL_MMD
+feature_dim: 768
+feature_type: velocity  # velocity or score
+
+# MMD Parameters
+sigma: 1.0
+sigma0: 0.1
+epsilon: 1.0e-10
+is_yy_zero: false
+is_smooth: true
+
+# Image Processing
+img_size: 224
+resolution_size: 224
+num_frames: 8
+
+# Score Function (NSG-VD)
+diffuse_steps: 5
+score_config_path: ./libs/eps_ad/imagnet.yml
+score_args_path: ./libs/eps_ad/args.yml
+
+# Model Checkpoint
+ckpt_path: ./pretrained/deepmmd_best.pth
+
+# Reference Features (pre-computed from real videos)
+ref_features_path: ./reference/feature_ref.pt
+ref_data_path: ./reference/ref_data.pt
+ref_load_len: 200  # Number of reference samples used
+
+# Inference Settings
+threshold: 1.0  # MMD threshold for real/fake classification
+batch_size: 1   # For single video inference
+
+# Device
+device: cuda
+device_id: 0
