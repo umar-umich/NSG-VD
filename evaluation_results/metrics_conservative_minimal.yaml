@@ -1,0 +1,18 @@
+confusion_matrix:
+  False Negatives (FN): 7
+  False Positives (FP): 20
+  True Negatives (TN): 7
+  True Positives (TP): 11
+  matrix_array:
+  - - 7
+    - 20
+  - - 7
+    - 11
+dataset_stats:
+  errors: 0
+  fake_videos: 18
+  real_videos: 27
+  total_videos: 45
+  valid_predictions: 45
+overall:
+  accuracy: 0.4

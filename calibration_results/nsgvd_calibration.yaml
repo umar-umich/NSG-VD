@@ -1,0 +1,37 @@
+calibration_date: '2025-11-30T12:49:28.143991'
+detector: nsgvd
+num_fake_videos: 649
+num_real_videos: 165
+statistics:
+  fake:
+    mean: 0.8011770416024653
+    std: 0.5235121205978134
+  real:
+    mean: 0.5893751515151516
+    std: 0.3929539748523353
+thresholds:
+  aggressive:
+    f1: 0.5602536997885835
+    fpr: 0.2
+    precision: 0.8922558922558923
+    target_fpr: 0.2
+    threshold: 0.9231
+    tpr: 0.4083204930662558
+  balanced:
+    f1: 0.4426229508196722
+    fpr: 0.10303030303030303
+    precision: 0.9219512195121952
+    target_fpr: 0.1
+    threshold: 1.2608
+    tpr: 0.29121725731895226
+  conservative:
+    f1: 0.35175879396984927
+    fpr: 0.048484848484848485
+    precision: 0.9523809523809523
+    target_fpr: 0.05
+    threshold: 1.4102
+    tpr: 0.21571648690292758
+  youden:
+    fpr: 0.16363636363636364
+    threshold: 0.9742
+    tpr: 0.40061633281972264

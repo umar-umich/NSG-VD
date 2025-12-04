@@ -1,0 +1,90 @@
+confusion_matrix:
+  False Negatives (FN): 8
+  False Positives (FP): 0
+  True Negatives (TN): 30
+  True Positives (TP): 0
+  matrix:
+  - - 30
+    - 0
+  - - 8
+    - 0
+dataset_stats:
+  fake_processed: 8
+  fake_videos: 13
+  real_processed: 30
+  real_videos: 41
+  skipped_extraction_failed: 0
+  skipped_frame_mismatch: 16
+  skipped_other_errors: 0
+  successfully_processed: 38
+  total_videos: 54
+overall:
+  accuracy: 0.7894736842105263
+skipped_videos_summary:
+  extraction_failed: []
+  frame_mismatch:
+  - label: real
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 033_02.mp4
+  - label: real
+    reason: Extracted 7 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 033_03.mp4
+  - label: real
+    reason: Extracted 7 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 048_03.mp4
+  - label: real
+    reason: Extracted 5 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 048_05.mp4
+  - label: real
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 115_01.mp4
+  - label: real
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 125_01.mp4
+  - label: real
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 125_02.mp4
+  - label: real
+    reason: Extracted 5 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 163_02.mp4
+  - label: real
+    reason: Extracted 7 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 164_01.mp4
+  - label: real
+    reason: Extracted 7 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 186_01.mp4
+  - label: real
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 187_02.mp4
+  - label: fake
+    reason: Extracted 7 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 005_02.mp4
+  - label: fake
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 011_01.mp4
+  - label: fake
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 011_02.mp4
+  - label: fake
+    reason: Extracted 6 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 011_04.mp4
+  - label: fake
+    reason: Extracted 7 frames but config expects 8 frames. Video may be too short
+      or corrupted.
+    video: 014_02.mp4
+  other_errors: []

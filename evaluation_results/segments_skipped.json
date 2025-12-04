@@ -1,0 +1,86 @@
+{
+  "frame_mismatch": [
+    {
+      "video": "033_02.mp4",
+      "label": "real",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "033_03.mp4",
+      "label": "real",
+      "reason": "Extracted 7 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "048_03.mp4",
+      "label": "real",
+      "reason": "Extracted 7 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "048_05.mp4",
+      "label": "real",
+      "reason": "Extracted 5 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "115_01.mp4",
+      "label": "real",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "125_01.mp4",
+      "label": "real",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "125_02.mp4",
+      "label": "real",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "163_02.mp4",
+      "label": "real",
+      "reason": "Extracted 5 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "164_01.mp4",
+      "label": "real",
+      "reason": "Extracted 7 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "186_01.mp4",
+      "label": "real",
+      "reason": "Extracted 7 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "187_02.mp4",
+      "label": "real",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "005_02.mp4",
+      "label": "fake",
+      "reason": "Extracted 7 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "011_01.mp4",
+      "label": "fake",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "011_02.mp4",
+      "label": "fake",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "011_04.mp4",
+      "label": "fake",
+      "reason": "Extracted 6 frames but config expects 8 frames. Video may be too short or corrupted."
+    },
+    {
+      "video": "014_02.mp4",
+      "label": "fake",
+      "reason": "Extracted 7 frames but config expects 8 frames. Video may be too short or corrupted."
+    }
+  ],
+  "extraction_failed": [],
+  "other_errors": []
+}

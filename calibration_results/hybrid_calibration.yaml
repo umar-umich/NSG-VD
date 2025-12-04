@@ -1,0 +1,48 @@
+calibration_date: '2025-11-30T12:49:28.134958'
+detectors:
+  nsgvd:
+    detector: nsgvd
+    num_real: 165
+    num_fake: 649
+    roc_auc: 0.6021945183732549
+    real_mean: 0.5893751515151516
+    real_std: 0.3929539748523353
+    fake_mean: 0.8011770416024653
+    fake_std: 0.5235121205978134
+    thresholds:
+      conservative:
+        threshold: 1.4102
+        fpr: 0.048484848484848485
+        tpr: 0.21571648690292758
+        precision: 0.9523809523809523
+        f1: 0.35175879396984927
+        target_fpr: 0.05
+      balanced:
+        threshold: 1.2608
+        fpr: 0.10303030303030303
+        tpr: 0.29121725731895226
+        precision: 0.9219512195121952
+        f1: 0.4426229508196722
+        target_fpr: 0.1
+      aggressive:
+        threshold: 0.9231
+        fpr: 0.2
+        tpr: 0.4083204930662558
+        precision: 0.8922558922558923
+        f1: 0.5602536997885835
+        target_fpr: 0.2
+      youden:
+        threshold: 0.9742
+        fpr: 0.16363636363636364
+        tpr: 0.40061633281972264
+ensemble:
+  face_videos:
+    nsgvd_weight: 0.3
+    face_detectors_weight: 0.7
+    face_detector_weights:
+      xception: 0.4
+      efficientnet: 0.3
+      clip_vit: 0.3
+  no_face_videos:
+    nsgvd_weight: 1.0
+    face_detectors_weight: 0.0

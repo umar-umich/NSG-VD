@@ -1,0 +1,58 @@
+by_detector:
+  Ensemble: !!python/object/apply:numpy._core.multiarray.scalar
+  - &id001 !!python/object/apply:numpy.dtype
+    args:
+    - f8
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - <
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    chzHcRzH4T8=
+  Face-Models: !!python/object/apply:numpy._core.multiarray.scalar
+  - *id001
+  - !!binary |
+    AAAAAAAAAAA=
+  NSG-VD: !!python/object/apply:numpy._core.multiarray.scalar
+  - *id001
+  - !!binary |
+    MzMzMzMz4z8=
+by_video_type:
+  face_manipulation: !!python/object/apply:numpy._core.multiarray.scalar
+  - *id001
+  - !!binary |
+    AAAAAAAAAAA=
+  fully_synthetic: !!python/object/apply:numpy._core.multiarray.scalar
+  - *id001
+  - !!binary |
+    MzMzMzMz4z8=
+  uncertain: !!python/object/apply:numpy._core.multiarray.scalar
+  - *id001
+  - !!binary |
+    chzHcRzH4T8=
+confusion_matrix:
+  false_negatives: 6
+  false_positives: 20
+  true_negatives: 7
+  true_positives: 12
+dataset_stats:
+  errors: 0
+  fake_videos: 18
+  real_videos: 27
+  total_videos: 45
+  valid_predictions: 45
+overall:
+  accuracy: 0.4222222222222222
+  f1_score: 0.48
+  fnr: 0.3333333333333333
+  fpr: 0.7407407407407407
+  precision: 0.375
+  recall: 0.6666666666666666
+  specificity: 0.25925925925925924

@@ -1,4 +1,4 @@
-checkpoint_path: /data/Umar/Repos/NSG-VD/ckpts/standard-Pika-mp.pth
+checkpoint_path: /data/Umar/Repos/NSG-VD/ckpts/standard-Pika-d.pth
 device: cuda
 device_id: 0
 diffuse_steps: 5

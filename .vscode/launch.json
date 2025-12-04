@@ -5,18 +5,24 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run test_dMMD.py",
+            "name": "Run main_batch.py",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/test_dMMD.py",
+            "program": "${workspaceFolder}/main_batch.py",
             "console": "integratedTerminal",
             "python": "/home/umflint.edu/mufarooq/miniconda3/envs/nsg-vd/bin/python",
             "args": [
-                "--config-path", "configs/nsg-vd-224x224",
-                "--config-name", "test.yaml",
-                "ckpt_path=./ckpts/standard-Pika-d.pth",
-                "log_path=./results/test/nsg-vd",
-                "save_csv_file=standard-Pika-mmd-d.csv"
+                 "--real_folder", "/data/Shared_Datasets/segmented_data_for_awais_and_umar/real",
+                "--fake_folder", "/data/Shared_Datasets/segmented_data_for_awais_and_umar/fake",
+                "--config", "config/nsgvd_detector.yaml",
+                "--checkpoint", "ckpts/standard-Pika-d.pth",
+                "--output", "segments",
+                "--device", "0"
+                // "--config-path", "configs/nsg-vd-224x224",
+                // "--config-name", "test.yaml",
+                // "ckpt_path=./ckpts/standard-Pika-d.pth",
+                // "log_path=./results/test/nsg-vd",
+                // "save_csv_file=standard-Pika-mmd-d.csv"
             ]
         }
     ]

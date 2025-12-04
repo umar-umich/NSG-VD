@@ -1,0 +1,11 @@
+HYBRID DETECTOR EVALUATION - CLASSIFICATION REPORT
+======================================================================
+
+              precision    recall  f1-score   support
+
+        Real       0.54      0.26      0.35        27
+        Fake       0.38      0.67      0.48        18
+
+    accuracy                           0.42        45
+   macro avg       0.46      0.46      0.41        45
+weighted avg       0.47      0.42      0.40        45

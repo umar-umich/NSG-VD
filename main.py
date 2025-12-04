@@ -46,7 +46,9 @@ class NSGVDDetector:
         
         # Load configuration
         if config_path is None:
-            config_path = os.path.join(base_path, 'config', 'nsgvd_detector.yaml')
+            print("config:None")
+            config_path = './config/nsgvd_detector.yaml'
+            # config_path = os.path.join(base_path, 'config', 'nsgvd_detector.yaml')
         
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"Config file not found: {config_path}")

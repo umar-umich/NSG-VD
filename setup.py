@@ -1,14 +1,17 @@
 """
-Setup script for NSG-VD Detector
+Setup script for NSG-VD Detector with Memory Management
 Generates reference features from real videos for single-video inference
 
 Based on NSG-VD repository: https://github.com/ZSHsh98/NSG-VD
+
+UPDATED: Fixed num_frames mismatch and shape validation issues
 """
 
 import torch
 import torch.nn.functional as F
 import os
 import sys
+import gc
 import argparse
 import yaml
 from pathlib import Path
@@ -28,28 +31,75 @@ from data.utils import get_score_fn
 from preprocess import extract_and_preprocess_frames
 
 
+def clear_gpu_memory(device):
+    """Aggressively clear GPU memory"""
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize(device)
+
+
+def collect_video_paths_by_category(root_dir, max_per_category):
+    """
+    Collect video paths from root directory with subdirectories as categories.
+    Each subdirectory is treated as a category, and max_per_category videos
+    are selected from each.
+    
+    Args:
+        root_dir: Root directory containing category subdirectories
+        max_per_category: Max videos per category (None = all)
+    
+    Returns:
+        List of video paths
+    """
+    root = Path(root_dir)
+    all_paths = []
+    
+    # Get immediate subdirectories (categories)
+    subdirs = [p for p in root.iterdir() if p.is_dir()]
+    
+    # If no subdirs, treat root itself as single category
+    if not subdirs:
+        subdirs = [root]
+    
+    for cat_dir in subdirs:
+        cat_paths = []
+        for ext in ['*.mp4', '*.avi', '*.mov', '*.mkv']:
+            cat_paths.extend(cat_dir.rglob(ext))
+        cat_paths = sorted(cat_paths)
+        
+        if max_per_category is not None:
+            cat_paths = cat_paths[:max_per_category]
+        
+        print(f"    Category: {cat_dir.relative_to(root)} -> {len(cat_paths)} videos")
+        all_paths.extend(cat_paths)
+    
+    return all_paths
+
+
 def generate_reference_features(
     ref_video_dir,
     checkpoint_path,
     output_dir,
-    num_videos=200,
+    max_videos_per_category=None,
     num_frames=8,
     device_id=0,
     diffuse_steps=5,
-    resolution_size=224
+    resolution_size=224,
+    batch_save=50  # Save features in batches to avoid memory accumulation
 ):
     """
-    Generate reference features from real videos
+    Generate reference features from real videos with memory management
     
     Args:
         ref_video_dir: Directory containing real/reference videos
         checkpoint_path: Path to NSG-VD model checkpoint
         output_dir: Directory to save reference features
-        num_videos: Number of reference videos to process
+        max_videos_per_category: Max videos per category subfolder
         num_frames: Frames per video
         device_id: GPU device ID
         diffuse_steps: Diffusion steps for NSG extraction
         resolution_size: Resolution for NSG computation
+        batch_save: Save features every N videos to avoid memory overflow
         
     Returns:
         feature_ref: Reference features tensor
@@ -58,15 +108,16 @@ def generate_reference_features(
     device = torch.device(f'cuda:{device_id}' if torch.cuda.is_available() else 'cpu')
     
     print("="*70)
-    print("NSG-VD REFERENCE FEATURE GENERATION")
+    print("NSG-VD REFERENCE FEATURE GENERATION (WITH MEMORY MANAGEMENT)")
     print("="*70)
     print(f"Reference video directory: {ref_video_dir}")
     print(f"Model checkpoint: {checkpoint_path}")
     print(f"Output directory: {output_dir}")
     print(f"Device: {device}")
-    print(f"Number of videos: {num_videos}")
+    print(f"Max videos per category: {max_videos_per_category if max_videos_per_category else 'all'}")
     print(f"Frames per video: {num_frames}")
     print(f"Diffusion steps: {diffuse_steps}")
+    print(f"Batch save interval: {batch_save} videos")
     print("="*70)
     
     # Step 1: Load NSG-VD model
@@ -78,7 +129,7 @@ def generate_reference_features(
         sigma0=0.1,
         epsilon=1e-10,
         img_size=224,
-        is_yy_zero=True,  # MMD-MP
+        is_yy_zero=True,
         is_smooth=True
     )
     
@@ -88,7 +139,7 @@ def generate_reference_features(
     model.eval()
     print("✓ Model loaded")
     
-    # Step 2: Load score function (diffusion model)
+    # Step 2: Load score function
     print("\n[2/4] Loading score function (diffusion model)...")
     score_config_path = './libs/eps_ad/imagnet.yml'
     score_args_path = './libs/eps_ad/args.yml'
@@ -100,27 +151,25 @@ def generate_reference_features(
     score_fn = get_score_fn(device, score_args_path, score_config_path)
     print("✓ Score function loaded")
     
-    # Step 3: Collect video files
+    # Step 3: Collect videos
     print(f"\n[3/4] Collecting videos from {ref_video_dir}...")
-    video_files = []
-    for ext in ['**/*.mp4', '**/*.avi', '**/*.mov', '**/*.mkv']:
-        video_files.extend(Path(ref_video_dir).glob(ext))    
-    video_files = sorted(video_files)[:num_videos]
+    video_files = collect_video_paths_by_category(ref_video_dir, max_videos_per_category)
     
     if len(video_files) == 0:
         raise ValueError(f"No video files found in {ref_video_dir}")
     
-    print(f"✓ Found {len(video_files)} videos (using {min(len(video_files), num_videos)})")
+    print(f"\n✓ Total videos collected: {len(video_files)}")
     
-    # Step 4: Extract features from videos
+    # Step 4: Extract features with memory management
     print(f"\n[4/4] Extracting NSG features from {len(video_files)} videos...")
     all_features = []
     all_nsg_data = []
+    batch_features = []
+    batch_nsg_data = []
+    failed_count = 0
     
-    transform = T.Compose([
-        T.Resize((224, 224)),
-        T.ToTensor(),
-    ])
+    os.makedirs(output_dir, exist_ok=True)
+    batch_counter = 0
     
     with torch.no_grad():
         for video_idx, video_path in enumerate(tqdm(video_files, desc="Processing videos")):
@@ -134,8 +183,12 @@ def generate_reference_features(
                 video_tensor = video_tensor.to(device)
                 T_frames, C, H, W = video_tensor.shape
                 
+                # Verify shape matches expected num_frames
+                if T_frames != num_frames:
+                    print(f"\n  ⚠ Warning: {video_path.name} has {T_frames} frames, expected {num_frames}")
+                    continue
+                
                 # Extract NSG features
-                # Resize for score computation
                 if H != resolution_size or W != resolution_size:
                     video_resized = F.interpolate(
                         video_tensor,
@@ -171,16 +224,50 @@ def generate_reference_features(
                 denominator = (score * pixel_diff).sum(dim=(1, 2, 3)).view(T_frames, 1, 1, 1) + epsilon
                 velocity = score / denominator
                 
-                # Add batch dimension and extract features
-                velocity_batch = velocity.unsqueeze(0)  # (1, T, C, H, W)
+                # Add batch dimension and extract features (KEEP ON GPU)
+                velocity_batch = velocity.unsqueeze(0)
                 _, features = model.net(velocity_batch, out_feature=True)
                 
-                all_features.append(features)
-                all_nsg_data.append(velocity_batch.view(1, -1))
+                # Keep on GPU - don't move to CPU yet
+                batch_features.append(features)
+                batch_nsg_data.append(velocity_batch.view(1, -1))
                 
+                # Clear intermediate tensors but KEEP batch on GPU
+                del video_tensor, video_resized, normalized, score, pixel_diff, denominator, velocity, velocity_batch
+                
+                # Save batch when limit reached
+                if len(batch_features) >= batch_save:
+                    # Move to CPU only when saving
+                    all_features.extend([f.cpu() for f in batch_features])
+                    all_nsg_data.extend([d.cpu() for d in batch_nsg_data])
+                    batch_counter += 1
+                    print(f"\n  ✓ Batch {batch_counter} saved ({len(batch_features)} videos, total: {video_idx + 1})")
+                    batch_features = []
+                    batch_nsg_data = []
+                    clear_gpu_memory(device)  # Clear only when saving batch
+                    
+            except RuntimeError as e:
+                if "out of memory" in str(e).lower():
+                    print(f"\n  ✗ CUDA OOM on {video_path.name}: {e}")
+                    failed_count += 1
+                    clear_gpu_memory(device)
+                    # Skip this video and continue
+                    continue
+                else:
+                    print(f"\n  ✗ Error processing {video_path.name}: {e}")
+                    failed_count += 1
+                    continue
             except Exception as e:
-                print(f"\nWarning: Failed to process {video_path.name}: {e}")
+                print(f"\n  ✗ Failed to process {video_path.name}: {e}")
+                failed_count += 1
                 continue
+    
+    # Save remaining batch
+    if len(batch_features) > 0:
+        all_features.extend([f.cpu() for f in batch_features])
+        all_nsg_data.extend([d.cpu() for d in batch_nsg_data])
+        batch_counter += 1
+        print(f"\n  ✓ Final batch {batch_counter} saved ({len(batch_features)} videos)")
     
     if len(all_features) == 0:
         raise RuntimeError("Failed to extract features from any video!")
@@ -189,7 +276,7 @@ def generate_reference_features(
     feature_ref = torch.cat(all_features, dim=0)
     ref_data = torch.cat(all_nsg_data, dim=0)
     
-    print(f"\n✓ Extracted features from {len(all_features)} videos")
+    print(f"\n✓ Extracted features from {len(all_features)} videos (failed: {failed_count})")
     print(f"  - feature_ref shape: {feature_ref.shape}")
     print(f"  - ref_data shape: {ref_data.shape}")
     
@@ -200,14 +287,26 @@ def generate_reference_features(
     torch.save(feature_ref, os.path.join(output_dir, 'feature_ref.pt'))
     torch.save(ref_data, os.path.join(output_dir, 'ref_data.pt'))
     
-    print("✓ Reference features saved")
+    # Save metadata
+    metadata = {
+        'num_frames': num_frames,
+        'num_videos': len(all_features),
+        'resolution_size': resolution_size,
+        'diffuse_steps': diffuse_steps,
+        'feature_dim': 300
+    }
+    torch.save(metadata, os.path.join(output_dir, 'metadata.pt'))
     
-    return feature_ref, ref_data
+    print("✓ Reference features saved")
+    clear_gpu_memory(device)
+    
+    return feature_ref, ref_data, num_frames
 
 
 def create_config_file(
     checkpoint_path,
     reference_dir,
+    num_frames,
     output_path='./config/nsgvd_detector.yaml'
 ):
     """
@@ -216,42 +315,35 @@ def create_config_file(
     Args:
         checkpoint_path: Path to model checkpoint
         reference_dir: Directory containing reference features
-        output_path: Where to save config file
+        num_frames: Number of frames used during reference generation
+        output_path: Path to save config file
     """
     config = {
-        # Model configuration
         'model_name': 'NSG-VD',
-        'feature_dim': 768,
-        'feature_type': 'velocity',  # NSG features
+        'feature_dim': 300,
+        'feature_type': 'velocity',
         
-        # MMD parameters
         'sigma': 1.0,
         'sigma0': 0.1,
         'epsilon': 1e-10,
-        'is_yy_zero': True,  # MMD-MP (recommended for demo)
+        'is_yy_zero': True,
         'is_smooth': True,
         
-        # Image processing
         'img_size': 224,
         'resolution_size': 224,
-        'num_frames': 8,
+        'num_frames': num_frames,  # CRITICAL: Must match reference generation
         
-        # NSG extraction
         'diffuse_steps': 5,
         'score_config_path': './libs/eps_ad/imagnet.yml',
         'score_args_path': './libs/eps_ad/args.yml',
         
-        # Model checkpoint
         'checkpoint_path': str(Path(checkpoint_path).resolve()),
         
-        # Reference features
         'ref_features_path': str(Path(reference_dir) / 'feature_ref.pt'),
         'ref_data_path': str(Path(reference_dir) / 'ref_data.pt'),
         
-        # Detection
         'threshold': 1.0,
         
-        # Device
         'device': 'cuda',
         'device_id': 0,
     }
@@ -262,15 +354,12 @@ def create_config_file(
         yaml.dump(config, f, default_flow_style=False)
     
     print(f"✓ Config file created: {output_path}")
+    print(f"  - num_frames set to: {num_frames}")
 
 
 def verify_setup(config_path, test_video_path=None):
     """
     Verify setup by running a test inference
-    
-    Args:
-        config_path: Path to config file
-        test_video_path: Optional test video
     """
     from main import NSGVDDetector
     
@@ -279,7 +368,6 @@ def verify_setup(config_path, test_video_path=None):
     print("="*70)
     
     try:
-        # Initialize detector
         print("\n[1/3] Initializing detector...")
         detector = NSGVDDetector(config_path=config_path)
         detector.load_model()
@@ -287,19 +375,41 @@ def verify_setup(config_path, test_video_path=None):
         detector.load_reference_features()
         print("✓ Detector initialized successfully")
         
-        # Test inference if video provided
+        # Verify reference data shape
+        ref_data = torch.load(detector.config['ref_data_path'])
+        expected_size = detector.config['num_frames'] * 3 * 224 * 224
+        actual_size = ref_data.shape[1]
+        
+        print(f"\n[2/3] Validating reference data...")
+        print(f"  Expected size per sample: {expected_size}")
+        print(f"  Actual size per sample: {actual_size}")
+        print(f"  num_frames from config: {detector.config['num_frames']}")
+        
+        if actual_size != expected_size:
+            print(f"\n✗ WARNING: Reference data size mismatch!")
+            print(f"  This suggests num_frames in config doesn't match reference generation")
+            print(f"  Expected: {expected_size}, Got: {actual_size}")
+            # Calculate what num_frames should be
+            correct_num_frames = actual_size // (3 * 224 * 224)
+            print(f"  Reference data was likely generated with num_frames={correct_num_frames}")
+            return False
+        else:
+            print("  ✓ Reference data shape is correct")
+        
         if test_video_path and os.path.exists(test_video_path):
-            print(f"\n[2/3] Testing inference on {test_video_path}...")
+            print(f"\n[3/3] Testing inference on {test_video_path}...")
             result = detector.get_predictions(test_video_path)
             print("✓ Inference successful!")
             print(f"\nTest Results:")
             print(f"  Prediction: {result['prediction'].upper()}")
-            print(f"  MMD Score: {result['mmd_score']}")
-            print(f"  Confidence: {result['confidence']}")
+            print(f"  MMD Score: {result['mmd_score']:.6f}")
+            print(f"  Confidence: {result['confidence']:.4f}")
         else:
-            print("\n[2/3] Skipping test inference (no test video provided)")
+            print("\n[3/3] Skipping test inference (no test video provided)")
         
-        print("\n[3/3] Setup verification complete! ✓")
+        print("\n" + "="*70)
+        print("SETUP VERIFICATION COMPLETE! ✓")
+        print("="*70)
         
     except Exception as e:
         print(f"\n✗ Setup verification failed!")
@@ -313,135 +423,116 @@ def verify_setup(config_path, test_video_path=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Setup NSG-VD Detector for Demo Integration',
+        description='Setup NSG-VD Detector with Memory Management',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate reference features from real videos
+  # Generate reference features with memory management
   python setup.py \\
-    --ref_video_dir ../Data/GenVideo/video/real/Kinetics-400 \\
+    --ref_video_dir ../Data/GenVideo/video/real \\
     --checkpoint ./ckpts/standard-Pika-mp.pth \\
-    --output_dir ./reference \\
-    --num_videos 200
+    --max_videos_per_category 50 \\
+    --num_frames 8 \\
+    --batch_save 30
 
-  # Skip reference generation if already done
+  # With custom GPU and batch size
   python setup.py \\
+    --ref_video_dir ../Data/GenVideo/video/real \\
     --checkpoint ./ckpts/standard-Pika-mp.pth \\
-    --reference_dir ./reference \\
-    --skip_reference \\
-    --test_video test.mp4
+    --device 1 \\
+    --num_frames 8 \\
+    --batch_save 20
         """
     )
     
-    parser.add_argument(
-        '--ref_video_dir',
-        type=str,
-        help='Directory containing reference (real) videos'
-    )
-    parser.add_argument(
-        '--checkpoint',
-        type=str,
-        required=True,
-        help='Path to NSG-VD model checkpoint (.pth)'
-    )
-    parser.add_argument(
-        '--output_dir',
-        type=str,
-        default='./reference',
-        help='Directory to save reference features'
-    )
-    parser.add_argument(
-        '--reference_dir',
-        type=str,
-        help='Existing reference directory (use with --skip_reference)'
-    )
-    parser.add_argument(
-        '--config_output',
-        type=str,
-        default='./config/nsgvd_detector.yaml',
-        help='Output path for config file'
-    )
-    parser.add_argument(
-        '--num_videos',
-        type=int,
-        default=200,
-        help='Number of reference videos to process'
-    )
-    parser.add_argument(
-        '--num_frames',
-        type=int,
-        default=8,
-        help='Number of frames per video'
-    )
-    parser.add_argument(
-        '--device',
-        type=int,
-        default=0,
-        help='GPU device ID'
-    )
-    parser.add_argument(
-        '--test_video',
-        type=str,
-        help='Optional test video for verification'
-    )
-    parser.add_argument(
-        '--skip_reference',
-        action='store_true',
-        help='Skip reference generation (use existing features)'
-    )
+    parser.add_argument('--ref_video_dir', type=str, help='Reference videos directory')
+    parser.add_argument('--checkpoint', type=str, required=True, help='Model checkpoint path')
+    parser.add_argument('--output_dir', type=str, default='./reference', help='Output directory')
+    parser.add_argument('--reference_dir', type=str, help='Existing reference directory')
+    parser.add_argument('--config_output', type=str, default='./config/nsgvd_detector.yaml')
+    parser.add_argument('--max_videos_per_category', type=int, default=1000)
+    parser.add_argument('--num_frames', type=int, default=8, help='Number of frames per video (CRITICAL)')
+    parser.add_argument('--batch_save', type=int, default=50, help='Save features every N videos')
+    parser.add_argument('--device', type=int, default=0)
+    parser.add_argument('--test_video', type=str, help='Test video path for verification')
+    parser.add_argument('--skip_reference', action='store_true', help='Skip reference generation')
     
     args = parser.parse_args()
+
+    # ------------------------------------------------------------------
+    # Auto-name reference dir and config file based on checkpoint
+    # ------------------------------------------------------------------
+    ckpt_name = Path(args.checkpoint).stem  # e.g. "unbalance-SEINE-mp"
+
+    # if args.output_dir == './reference':
+    args.reference_dir = f'./reference_{ckpt_name}_{args.max_videos_per_category}'
+
+    # if args.config_output == './config/nsgvd_detector.yaml':
+    args.config_output = f'./config/nsgvd_detector_{ckpt_name}_{args.max_videos_per_category}.yaml'
+
+    print("\nResolved paths based on checkpoint:")
+    print(f"  Checkpoint:     {args.checkpoint}")
+    print(f"  Reference dir:  {args.reference_dir}")
+    print(f"  Config output:  {args.config_output}\n")
+
     
-    # Validate arguments
     if not args.skip_reference and not args.ref_video_dir:
         parser.error("--ref_video_dir required unless --skip_reference is set")
     
-    if args.skip_reference and not args.reference_dir:
-        args.reference_dir = args.output_dir
     
-    # Step 1: Generate reference features
+    num_frames_used = args.num_frames
+    
     if not args.skip_reference:
-        feature_ref, ref_data = generate_reference_features(
+        feature_ref, ref_data, num_frames_used = generate_reference_features(
             ref_video_dir=args.ref_video_dir,
             checkpoint_path=args.checkpoint,
-            output_dir=args.output_dir,
-            num_videos=args.num_videos,
+            output_dir=args.reference_dir,
+            max_videos_per_category=args.max_videos_per_category,
             num_frames=args.num_frames,
-            device_id=args.device
+            device_id=args.device,
+            batch_save=args.batch_save
         )
     else:
         print("\nSkipping reference feature generation...")
         print(f"Using existing features from {args.reference_dir}")
+        
+        # Load metadata to get num_frames
+        metadata_path = os.path.join(args.reference_dir, 'metadata.pt')
+        if os.path.exists(metadata_path):
+            metadata = torch.load(metadata_path)
+            num_frames_used = metadata['num_frames']
+            print(f"Loaded metadata: num_frames = {num_frames_used}")
+        else:
+            print(f"Warning: No metadata found at {metadata_path}")
+            print(f"Using command-line num_frames = {args.num_frames}")
+            num_frames_used = args.num_frames
     
-    # Step 2: Create config file
     print("\n" + "="*70)
     print("CREATING CONFIG FILE")
     print("="*70)
     create_config_file(
         checkpoint_path=args.checkpoint,
         reference_dir=args.reference_dir or args.output_dir,
+        num_frames=num_frames_used,
         output_path=args.config_output
     )
     
-    # Step 3: Verify setup
-    verify_setup(
-        config_path=args.config_output,
-        test_video_path=args.test_video
-    )
+    success = verify_setup(config_path=args.config_output, test_video_path=args.test_video)
     
-    # Final summary
-    print("\n" + "="*70)
-    print("SETUP COMPLETE!")
-    print("="*70)
-    print("\nYou can now use NSG-VD detector in your demo:")
-    print("\n  from main import NSGVDDetector")
-    print(f"  detector = NSGVDDetector(config_path='{args.config_output}')")
-    print("  detector.load_model()")
-    print("  detector.load_score_function()")
-    print("  detector.load_reference_features()")
-    print("  result = detector.get_predictions('video.mp4')")
-    print("\n" + "="*70)
-
+    if success:
+        print("\n" + "="*70)
+        print("SETUP COMPLETE!")
+        print("="*70)
+        print("\nYou can now use NSG-VD detector in your code:")
+        print("\n  from main import NSGVDDetector")
+        print(f"  detector = NSGVDDetector(config_path='{args.config_output}')")
+        print("="*70)
+    else:
+        print("\n" + "="*70)
+        print("SETUP FAILED - Please review errors above")
+        print("="*70)
+        sys.exit(1)
+    
 
 if __name__ == '__main__':
     main()
