@@ -1,0 +1,59 @@
+defaults:
+  - _self_
+
+hydra:
+  run:
+    dir: "results/outputs/" 
+
+model:
+  name: "Velocity_VideoMAE_MMD"  # Changed to VideoMAE
+  img_size: 224
+  epsilon: 10
+  sigma: 1000
+  sigma0: 0.1
+  feature_dim: 512
+  is_smooth: True
+  is_yy_zero: False # True for mmd-mp, False for mmd-d
+  freeze_backbone: True  # New: Start with frozen backbone
+  
+seed: 42
+trainer:
+  max_epochs: 100
+  optimizer:
+    name: "adamW"  # Changed to AdamW (better for fine-tuning)
+    lr: 1e-3  # Higher LR for adapter layers
+    betas: [0.9, 0.999]
+    weight_decay: 0.05  # Reduced weight decay
+  loss_fn:
+    name: "cross_entropy"
+  val_check_interval: 1
+  num_gpus: 1
+  device_ids: [0,1,2,3]
+
+data:
+  data_path: "/home/umflint.edu/mufarooq/Umar_local_data/${data.dataset_name}"
+  dataset_name: "GenVideo"
+  feature_type: velocity
+  num_workers: 16
+  num_frames: 8
+  generation_model: "Pika"
+  input_shape: [224,224]
+  resolution_size: 224
+  train_real_model: "Kinetics-400"
+  test_real_model: "MSR-VTT"
+  val_real_model: "MSR-VTT"
+  ref_model: "MSR-VTT"
+  ref_mode: "test"
+  filter_nsg: False
+  diffuse_steps: 5
+  train_load_len: 10000
+  ref_load_len: 200
+  val_load_len: 100
+  batch_size: 16  # Reduced for memory (VideoMAE is larger)
+  val_batch_size: 16
+
+task_type: standard # standard / unbalance
+debug: False
+experiment_name: "videomae-Pika-mmd-mp"
+save_ckpt_path: "./results/ckpts/nsg-vd/${experiment_name}/"
+log_path: "./results/logs/nsg-vd"
