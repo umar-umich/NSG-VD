@@ -17,6 +17,26 @@ import torch
 from torchinfo import summary
 import os
 from torch.utils.tensorboard import SummaryWriter
+import pynvml
+
+
+def get_top_free_gpus(n=1):
+    pynvml.nvmlInit()
+    device_count = pynvml.nvmlDeviceGetCount()
+    free_memories = []
+
+    for i in range(device_count):
+        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+        mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        free_memories.append((i, mem_info.free))  # (GPU index, free mem in bytes)
+
+    pynvml.nvmlShutdown()
+
+    # Sort by most free memory and return top `n` GPU indices
+    sorted_gpus = sorted(free_memories, key=lambda x: x[1], reverse=True)
+    gpus = [gpu[0] for gpu in sorted_gpus[:n]]
+    print(f"Top {n} free GPUs: {gpus}")
+    return gpus
 
 @hydra.main(config_path="configs/nsg-vd-224x224", config_name="standard.yaml", version_base=None)
 def main(cfg: DictConfig):
@@ -28,21 +48,33 @@ def main(cfg: DictConfig):
     writer = SummaryWriter(log_dir=log_dir)
     set_seed(cfg.seed)
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    gpu_ids = get_top_free_gpus(n=1)
+    device = torch.device(f"cuda:{gpu_ids[0]}")
 
     # ----------------------------------- Model ---------------------------------- #
     if cfg.model.name in ["Velocity_Single_TALL_MMD", "Score_Single_TALL_MMD"]:
         logger.info("Using single layer of TALL_MMD model")
         discriminator = SingleSwinBlockDiscriminator(num_features=cfg.model.feature_dim)
+    elif cfg.model.name in ["Velocity_VideoMAE_MMD", "Score_VideoMAE_MMD"]:
+        logger.info("Using VideoMAE discriminator")
+        from models.discriminators import VideoMAEDiscriminator
+        discriminator = VideoMAEDiscriminator(
+            num_features=cfg.model.feature_dim,
+            duration=cfg.data.num_frames,
+            freeze_backbone=cfg.model.get('freeze_backbone', True)
+        )
     else:
         raise ValueError(f"Unsupported model: {cfg.model.name}")
-    model = deep_MMD(discriminator=discriminator, 
-                        sigma=cfg.model.sigma, 
-                        sigma0=cfg.model.sigma0, 
-                        epsilon=cfg.model.epsilon, 
-                        img_size=cfg.model.img_size, 
-                        is_yy_zero=cfg.model.is_yy_zero,
-                        is_smooth=cfg.model.is_smooth)
+
+    model = deep_MMD(
+        discriminator=discriminator, 
+        sigma=cfg.model.sigma, 
+        sigma0=cfg.model.sigma0, 
+        epsilon=cfg.model.epsilon, 
+        img_size=cfg.model.img_size, 
+        is_yy_zero=cfg.model.is_yy_zero,
+        is_smooth=cfg.model.is_smooth
+    )
     model = model.to(device)
     
     summary(model)
