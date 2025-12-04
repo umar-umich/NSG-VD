@@ -148,6 +148,111 @@ class MLPDiscriminator(nn.Module):
 		else:
 			return validity
      
+class VideoMAEDiscriminator(nn.Module):
+    """
+    VideoMAE-based discriminator for deepfake detection
+    Uses pretrained VideoMAE backbone with lightweight adapter
+    """
+    def __init__(self, num_features=300, duration=8, freeze_backbone=True):
+        super(VideoMAEDiscriminator, self).__init__()
+        try:
+            from transformers import VideoMAEModel
+        except ImportError:
+            raise ImportError(
+                "transformers not installed. Install with: pip install transformers"
+            )
+        
+        self.duration = duration
+        self.freeze_backbone = freeze_backbone
+        
+        # Load pretrained VideoMAE
+        print("Loading pretrained VideoMAE model...")
+        self.encoder = VideoMAEModel.from_pretrained(
+            "MCG-NJU/videomae-base-finetuned-kinetics",
+            cache_dir="./pretrained_models"
+        )
+        print("✓ VideoMAE loaded successfully")
+        
+        # Freeze backbone if requested
+        if freeze_backbone:
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            print("✓ VideoMAE backbone frozen")
+        
+        # Lightweight adapter layers
+        self.adapter = nn.Sequential(
+            nn.Linear(768, 512),
+            nn.LayerNorm(512),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(512, num_features),
+            nn.LayerNorm(num_features),
+        )
+        
+        # Classification head for MMD
+        self.adv_layer = nn.Sequential(
+            nn.Linear(num_features, 2),
+            nn.Softmax(dim=1)
+        )
+        
+        # Initialize adapter weights
+        self._init_adapter_weights()
+    
+    def _init_adapter_weights(self):
+        """Initialize adapter layer weights"""
+        for m in self.adapter.modules():
+            if isinstance(m, nn.Linear):
+                trunc_normal_(m.weight, std=.02)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+        
+        for m in self.adv_layer.modules():
+            if isinstance(m, nn.Linear):
+                trunc_normal_(m.weight, std=.02)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+    
+    def forward(self, x, out_feature=False):
+        """
+        Args:
+            x: (B, T, C, H, W) video tensor
+            out_feature: whether to return features
+        Returns:
+            validity: (B, 2) classification logits
+            feature: (B, num_features) if out_feature=True
+        """
+        b, t, c, h, w = x.shape
+        
+        # Resize if needed (VideoMAE expects 224x224)
+        if h != 224 or w != 224:
+            x = x.view(b * t, c, h, w)
+            x = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
+            x = x.view(b, t, c, 224, 224)
+        
+        # VideoMAE expects (B, C, T, H, W)
+        x = x.permute(0, 2, 1, 3, 4)
+        
+        # Extract features from VideoMAE
+        if self.freeze_backbone:
+            with torch.no_grad():
+                outputs = self.encoder(x)
+        else:
+            outputs = self.encoder(x)
+        
+        # Pool over sequence dimension
+        pooled = outputs.last_hidden_state.mean(dim=1)  # (B, 768)
+        
+        # Adapt features
+        feature = self.adapter(pooled)  # (B, num_features)
+        
+        # Get validity scores
+        validity = self.adv_layer(feature)  # (B, 2)
+        
+        if out_feature:
+            return validity, feature
+        else:
+            return validity
+        
 # # -------------------- Models Define Below Come From EPS-AD ------------------- #
 # class _netG(nn.Module):
 # 	def __init__(self, ngpu, nz):
